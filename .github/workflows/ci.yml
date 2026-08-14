@@ -45,10 +45,13 @@ jobs:
         run: pytest
 
       - name: Import smoke
+        # Deliberately runs with NO environment overrides. This step used to set
+        # CLOAKROOM_AUTO_INGEST=false and CLOAKROOM_DB_PATH=:memory:, which is
+        # precisely why nobody noticed that importing the module downloaded
+        # ~140 MB and wrote a database: the one place the import was exercised
+        # was the one place it was suppressed. Importing must be free of I/O on
+        # its own merits.
         run: python -c "import server, ingest; print('imports clean')"
-        env:
-          CLOAKROOM_AUTO_INGEST: "false"
-          CLOAKROOM_DB_PATH: ":memory:"
 
   secrets:
     name: secret scan
