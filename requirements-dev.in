@@ -4,4 +4,4 @@
 ruff>=0.15.0,<0.16
 mypy>=1.14,<2
 pytest>=8.3,<9
-pytest-cov>=6.0,<8
+pytest-cov>=7.1.0,<8
