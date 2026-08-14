@@ -117,18 +117,107 @@ def test_pre_101st_congress_votes_have_no_clerk_number(loaded) -> None:
     assert row["date"] == "1789-07-17"
 
 
-def test_clerk_index_rejects_a_duplicate_mapping(loaded) -> None:
-    """The bridge index is UNIQUE, so an ambiguous mapping fails loudly.
+def test_ingest_rejects_a_duplicate_clerk_mapping(loaded) -> None:
+    """The uniqueness guarantee, tested through the code that actually ships.
 
-    A second row claiming the same (congress, session, clerk_rollnumber) would
-    make cross-referencing silently non-deterministic. The database refuses it.
+    This previously asserted IntegrityError against a hand-written plain
+    INSERT. The ingest used INSERT OR REPLACE, which resolves a unique-index
+    violation by *deleting* the conflicting row, so the guarantee the schema
+    comment described was never enforced on any path a user could reach. The
+    test passed and the promise was empty: the fourth instance in this project
+    of a green test that never touched the shipping code.
+
+    Drives clients.loaders.insert_rollcalls, the real ingest entry point.
     """
     import sqlite3
 
-    with pytest.raises(sqlite3.IntegrityError):
-        loaded.execute(
-            "INSERT INTO rollcalls (congress, rollnumber, chamber, session, clerk_rollnumber) "
-            "VALUES (?, ?, 'Senate', ?, ?)",
-            (CONGRESS, 99999, SESSION, SENATE_VOTE_NUMBER),
-        )
-        loaded.commit()
+    from clients import loaders
+
+    before = loaded.execute(
+        "SELECT rollnumber FROM rollcalls WHERE congress=? AND session=? AND clerk_rollnumber=?",
+        (CONGRESS, SESSION, SENATE_VOTE_NUMBER),
+    ).fetchone()["rollnumber"]
+    assert before == VOTEVIEW_ROLLNUMBER
+
+    votes_before = loaded.execute(
+        "SELECT COUNT(*) AS n FROM votes WHERE congress=? AND rollnumber=?",
+        (CONGRESS, VOTEVIEW_ROLLNUMBER),
+    ).fetchone()["n"]
+    assert votes_before > 0, "fixture must carry member votes for the target roll call"
+
+    collision = {
+        "congress": str(CONGRESS),
+        "chamber": "Senate",
+        "rollnumber": "99999",
+        "session": str(SESSION),
+        "clerk_rollnumber": str(SENATE_VOTE_NUMBER),
+        "date": "2026-08-08",
+        "yea_count": "1",
+        "nay_count": "1",
+    }
+    with pytest.raises(sqlite3.IntegrityError) as exc:
+        loaders.insert_rollcalls(loaded, iter([collision]))
+
+    message = str(exc.value)
+    assert "clerk_rollnumber" in message
+    assert str(VOTEVIEW_ROLLNUMBER) in message, "the error should name the existing roll call"
+
+    # The original row survives and nothing is orphaned.
+    after = loaded.execute(
+        "SELECT rollnumber FROM rollcalls WHERE congress=? AND session=? AND clerk_rollnumber=?",
+        (CONGRESS, SESSION, SENATE_VOTE_NUMBER),
+    ).fetchone()["rollnumber"]
+    assert after == VOTEVIEW_ROLLNUMBER, "the conflicting write replaced the real roll call"
+    orphans = loaded.execute(
+        "SELECT COUNT(*) AS n FROM votes v "
+        "LEFT JOIN rollcalls r ON r.congress = v.congress AND r.rollnumber = v.rollnumber "
+        "WHERE r.rollnumber IS NULL"
+    ).fetchone()["n"]
+    assert orphans == 0, "member votes were orphaned by the rejected write"
+
+
+def test_reingesting_the_same_rollcalls_is_idempotent(loaded) -> None:
+    """The upsert must not turn 'fail loudly on collision' into 'fail on rerun'.
+
+    Refreshing from newly published Voteview data re-inserts every existing roll
+    call, so a naive plain INSERT would make routine ingest impossible.
+    """
+    from clients import loaders
+    from tests.conftest import read_csv
+
+    before = loaded.execute("SELECT COUNT(*) AS n FROM rollcalls").fetchone()["n"]
+    loaders.insert_rollcalls(loaded, iter(read_csv("rollcalls_sample.csv")))
+    loaders.insert_rollcalls(loaded, iter(read_csv("rollcalls_sample.csv")))
+    after = loaded.execute("SELECT COUNT(*) AS n FROM rollcalls").fetchone()["n"]
+    assert before == after
+    assert loaded.execute(
+        "SELECT 1 FROM rollcalls WHERE congress=? AND rollnumber=?",
+        (CONGRESS, VOTEVIEW_ROLLNUMBER),
+    ).fetchone()
+
+
+def test_upsert_refreshes_values_in_place(loaded) -> None:
+    """A re-ingest must update the row, not leave stale values behind."""
+    from clients import loaders
+
+    loaded.execute(
+        "UPDATE rollcalls SET yea_count = 0 WHERE congress=? AND rollnumber=?",
+        (CONGRESS, VOTEVIEW_ROLLNUMBER),
+    )
+    loaded.commit()
+    row = {
+        "congress": str(CONGRESS),
+        "chamber": "Senate",
+        "rollnumber": str(VOTEVIEW_ROLLNUMBER),
+        "session": str(SESSION),
+        "clerk_rollnumber": str(SENATE_VOTE_NUMBER),
+        "date": "2026-08-08",
+        "yea_count": "52",
+        "nay_count": "46",
+    }
+    loaders.insert_rollcalls(loaded, iter([row]))
+    refreshed = loaded.execute(
+        "SELECT yea_count FROM rollcalls WHERE congress=? AND rollnumber=?",
+        (CONGRESS, VOTEVIEW_ROLLNUMBER),
+    ).fetchone()["yea_count"]
+    assert refreshed == 52

@@ -87,6 +87,9 @@ def build_context(s: CloakroomSettings) -> Context:
             conn,
             current_congress=s.cloakroom_current_congress,
             current_session=s.cloakroom_current_session,
+            # The toggle is enforced inside the client, so every caller is
+            # covered rather than only the ones that remember to check.
+            enabled_feeds=s.enabled_feeds,
         )
     else:
         log.info("All senate.gov feeds disabled; serving entirely from bulk data.")

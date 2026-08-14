@@ -49,7 +49,31 @@ def _parse_xml(body: str, url: str) -> ET.Element:
         ) from exc
 
 
+class FeedDisabled(PoliteError):
+    """Raised when a caller reaches for a feed the operator turned off."""
+
+    def __init__(self, feed: str):
+        super().__init__(
+            f"the {feed} feed is disabled by configuration; no senate.gov request was made",
+            "INVALID_INPUT",
+            {"feed": feed},
+        )
+
+
 class SenateGovClient:
+    """Every senate.gov read goes through here, including the feed toggle.
+
+    ``enabled_feeds`` is enforced in this class rather than at each call site.
+    It was originally checked only in ``get_schedule``, so ``get_vote`` with
+    ``include_senate_detail=True`` still issued live requests for an operator
+    who had disabled the votes feed specifically to stop that traffic. Same
+    class of bug as an allowlist that only some callers consult: a stated
+    safety control is worth nothing unless it sits at the choke point.
+
+    ``None`` means every feed is enabled, which keeps the class usable in tests
+    without threading settings through.
+    """
+
     def __init__(
         self,
         fetcher: PoliteFetcher,
@@ -57,11 +81,20 @@ class SenateGovClient:
         *,
         current_congress: int = 119,
         current_session: int = 2,
+        enabled_feeds: set[str] | None = None,
     ):
         self._fetch = fetcher
         self._conn = conn
         self.current_congress = current_congress
         self.current_session = current_session
+        self._enabled_feeds = enabled_feeds
+
+    def feed_enabled(self, feed: str) -> bool:
+        return self._enabled_feeds is None or feed in self._enabled_feeds
+
+    def _require(self, feed: str) -> None:
+        if not self.feed_enabled(feed):
+            raise FeedDisabled(feed)
 
     def _is_closed(self, congress: int, session: int) -> bool:
         """A session that is over can never change, so it caches permanently."""
@@ -76,6 +109,7 @@ class SenateGovClient:
         ``congress_year`` alongside ``vote_date`` so the calendar year travels
         with the row and callers do not have to re-derive it.
         """
+        self._require("votes")
         url = senate_menu_url(congress, session)
         body = await self._fetch.get_text(url, immutable=self._is_closed(congress, session))
         root = _parse_xml(body, url)
@@ -104,6 +138,7 @@ class SenateGovClient:
         Cached in ``senate_vote_detail`` on first fetch and served from there
         afterwards, so a given vote is requested from senate.gov at most once.
         """
+        self._require("votes")
         cached = self._detail_from_db(congress, session, vote_number)
         if cached:
             return cached
@@ -163,12 +198,21 @@ class SenateGovClient:
         ).fetchone()
         if not row:
             return None
+        pos = self._conn.execute(
+            "SELECT lis_member_id, member_full, last_name, first_name, party, state, "
+            "vote_cast FROM senate_vote_positions "
+            "WHERE congress=? AND session=? AND vote_number=? ORDER BY ordinal",
+            (congress, session, vote_number),
+        ).fetchall()
+        if not pos:
+            # A detail row cached before positions were persisted. Returning it
+            # with an empty list is what made this tool non-idempotent, so treat
+            # the row as a miss and let the caller refetch, which repopulates
+            # both tables. Self-heals existing databases without a migration.
+            return None
         d = dict(row)
         d.pop("fetched_at", None)
-        # Positions are not stored per-member; the Voteview join supplies those
-        # with stable identifiers, which is strictly better than the name blob.
-        d["positions"] = []
-        d["positions_source"] = "voteview"
+        d["positions"] = [dict(r) for r in pos]
         return d
 
     def _save_detail(self, detail: dict) -> None:
@@ -203,6 +247,32 @@ class SenateGovClient:
             f"VALUES ({', '.join('?' * (len(cols) + 1))})",
             vals,
         )
+        key = (detail.get("congress"), detail.get("session"), detail.get("vote_number"))
+        self._conn.execute(
+            "DELETE FROM senate_vote_positions WHERE congress=? AND session=? AND vote_number=?",
+            key,
+        )
+        positions = detail.get("positions") or []
+        self._conn.executemany(
+            "INSERT OR REPLACE INTO senate_vote_positions "
+            "(congress, session, vote_number, lis_member_id, member_full, last_name, "
+            "first_name, party, state, vote_cast, ordinal) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            [
+                (
+                    *key,
+                    m.get("lis_member_id"),
+                    m.get("member_full"),
+                    m.get("last_name"),
+                    m.get("first_name"),
+                    m.get("party"),
+                    m.get("state"),
+                    m.get("vote_cast"),
+                    i,
+                )
+                for i, m in enumerate(positions)
+            ],
+        )
         self._conn.commit()
 
     # ------------------------------------------------------------- schedule
@@ -215,6 +285,7 @@ class SenateGovClient:
         dropped, so "nothing scheduled" stays distinguishable from "the fetch
         returned nothing".
         """
+        self._require("hearings")
         url = SENATE_STATIC_FEEDS["hearings"]
         root = _parse_xml(await self._fetch.get_text(url), url)
         out = []
@@ -243,6 +314,7 @@ class SenateGovClient:
         independent cross-check on the identity bridge built from
         congress-legislators.
         """
+        self._require("members")
         url = SENATE_STATIC_FEEDS["members"]
         root = _parse_xml(await self._fetch.get_text(url), url)
         out = []
@@ -272,6 +344,7 @@ class SenateGovClient:
         Shape differs from the other two feeds: data lives in XML *attributes*
         on ``LegislativeDay`` and in child elements of ``SessionDay``.
         """
+        self._require("floor")
         url = SENATE_STATIC_FEEDS["floor"]
         root = _parse_xml(await self._fetch.get_text(url), url)
         days = []

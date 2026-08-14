@@ -97,8 +97,26 @@ def insert_rollcalls(conn: sqlite3.Connection, rows: Iterator[dict]) -> int:
         "vote_question",
         "dtl_desc",
     )
+    # Upsert on the primary key, NOT "INSERT OR REPLACE".
+    #
+    # OR REPLACE resolves *any* constraint violation by deleting the conflicting
+    # row. That includes the UNIQUE index on (congress, session,
+    # clerk_rollnumber), which exists precisely so an ambiguous senate.gov
+    # cross-reference fails loudly instead of silently resolving to the wrong
+    # vote. Under OR REPLACE a second row claiming clerk_rollnumber 231 quietly
+    # deleted Voteview rollnumber 890 and orphaned its 100 member-vote rows,
+    # while the test asserting IntegrityError passed against a plain INSERT that
+    # the ingest never used.
+    #
+    # ON CONFLICT on the primary key keeps re-running ingest idempotent (same
+    # roll call, values refreshed in place) while leaving the clerk-number index
+    # free to raise.
+    updatable = [c for c in cols if c not in ("congress", "rollnumber")]
     sql = (
-        f"INSERT OR REPLACE INTO rollcalls ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})"
+        f"INSERT INTO rollcalls ({','.join(cols)}) "
+        f"VALUES ({','.join('?' * len(cols))}) "
+        f"ON CONFLICT(congress, rollnumber) DO UPDATE SET "
+        + ", ".join(f"{c}=excluded.{c}" for c in updatable)
     )
     batch, total = [], 0
     for r in rows:
@@ -127,17 +145,48 @@ def insert_rollcalls(conn: sqlite3.Connection, rows: Iterator[dict]) -> int:
             )
         )
         if len(batch) >= BATCH:
-            conn.executemany(sql, batch)
-            conn.commit()
+            _flush_rollcalls(conn, sql, batch)
             total += len(batch)
             batch.clear()
             _progress("roll calls", total, 25_000)
     if batch:
-        conn.executemany(sql, batch)
-        conn.commit()
+        _flush_rollcalls(conn, sql, batch)
         total += len(batch)
     log.info("  roll calls: %s rows loaded", f"{total:,}")
     return total
+
+
+def _flush_rollcalls(conn: sqlite3.Connection, sql: str, batch: list) -> None:
+    """Write a batch, turning a clerk-number collision into a useful message.
+
+    A raw IntegrityError says only "constraint failed", which is useless in a
+    53,000-row load. Retrying row by row costs nothing on the failure path and
+    names the exact roll calls that collided.
+    """
+    try:
+        conn.executemany(sql, batch)
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        for row in batch:
+            try:
+                conn.execute(sql, row)
+            except sqlite3.IntegrityError as exc:
+                conn.rollback()
+                congress, rollnumber, session, clerk = row[0], row[1], row[4], row[5]
+                existing = conn.execute(
+                    "SELECT rollnumber FROM rollcalls "
+                    "WHERE congress=? AND session=? AND clerk_rollnumber=?",
+                    (congress, session, clerk),
+                ).fetchone()
+                raise sqlite3.IntegrityError(
+                    f"clerk_rollnumber collision in congress {congress}, session "
+                    f"{session}: incoming rollnumber {rollnumber} and existing "
+                    f"rollnumber {existing['rollnumber'] if existing else '?'} both "
+                    f"claim clerk_rollnumber {clerk}. The senate.gov bridge must not "
+                    f"be ambiguous, so ingest stops rather than picking one."
+                ) from exc
+        conn.commit()
 
 
 def load_members(conn: sqlite3.Connection, ua: str) -> int:

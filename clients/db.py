@@ -140,6 +140,26 @@ CREATE TABLE IF NOT EXISTS senate_vote_detail (
     PRIMARY KEY (congress, session, vote_number)
 );
 
+-- Per-member positions from a senate.gov roll call file, stored alongside the
+-- detail row so a cached vote returns byte-identical data to a freshly fetched
+-- one. Without this, the first call returned ~100 positions and every later
+-- call returned an empty list, which quietly broke the idempotency the tool
+-- advertises.
+CREATE TABLE IF NOT EXISTS senate_vote_positions (
+    congress        INTEGER NOT NULL,
+    session         INTEGER NOT NULL,
+    vote_number     INTEGER NOT NULL,
+    lis_member_id   TEXT,
+    member_full     TEXT,
+    last_name       TEXT,
+    first_name      TEXT,
+    party           TEXT,
+    state           TEXT,
+    vote_cast       TEXT,
+    ordinal         INTEGER NOT NULL,
+    PRIMARY KEY (congress, session, vote_number, ordinal)
+);
+
 -- Conditional-GET bookkeeping for senate.gov. Storing the validators is what
 -- lets a daily poll cost a 304 instead of a download.
 CREATE TABLE IF NOT EXISTS http_cache (
