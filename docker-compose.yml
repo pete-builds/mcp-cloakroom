@@ -20,7 +20,7 @@ x-logging: &default-logging
 
 services:
   mcp-cloakroom:
-    image: ghcr.io/pete-builds/mcp-cloakroom:0.1.0
+    image: ghcr.io/pete-builds/mcp-cloakroom:0.1.1
     container_name: mcp-cloakroom
     restart: unless-stopped
     ports:
