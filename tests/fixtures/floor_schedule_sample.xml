@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?><CongressSessionDayConvenings Congress="119" FileType="SessionDays" SessionNumber="2">
+  <LegislativeDay LegislativeDayDate="2026-01-03T00:00:00-05:00">
+    <SessionDay>
+      <ConveneDate>2026-01-03T12:00:00-05:00</ConveneDate>
+      <AdjournDate>2026-01-03T12:00:27-05:00</AdjournDate>
+      <AdjournType>Adjourn</AdjournType>
+      <NextConveneDate>2026-01-05T15:00:00-05:00</NextConveneDate>
+      <LastUpdateDate>2026-01-03T12:15:24-05:00</LastUpdateDate>
+    </SessionDay>
+  </LegislativeDay>
+<LegislativeDay LegislativeDayDate="2026-01-05T00:00:00-05:00">
+    <SessionDay>
+      <ConveneDate>2026-01-05T15:00:00-05:00</ConveneDate>
+      <AdjournDate>2026-01-05T18:13:00-05:00</AdjournDate>
+      <AdjournType>Adjourn</AdjournType>
+      <NextConveneDate>2026-01-06T10:00:00-05:00</NextConveneDate>
+      <LastUpdateDate>2026-01-05T18:13:34-05:00</LastUpdateDate>
+    </SessionDay>
+  </LegislativeDay>
+<LegislativeDay LegislativeDayDate="2026-01-06T00:00:00-05:00">
+    <SessionDay>
+      <ConveneDate>2026-01-06T10:00:00-05:00</ConveneDate>
+      <AdjournDate>2026-01-06T19:32:00-05:00</AdjournDate>
+      <AdjournType>Adjourn</AdjournType>
+      <NextConveneDate>2026-01-07T11:15:00-05:00</NextConveneDate>
+      <LastUpdateDate>2026-01-06T19:32:28-05:00</LastUpdateDate>
+    </SessionDay>
+  </LegislativeDay>
+<LegislativeDay LegislativeDayDate="2026-01-07T00:00:00-05:00">
+    <SessionDay>
+      <ConveneDate>2026-01-07T11:15:00-05:00</ConveneDate>
+      <AdjournDate>2026-01-07T17:45:00-05:00</AdjournDate>
+      <AdjournType>Recess</AdjournType>
+      <NextConveneDate>2026-01-08T10:00:00-05:00</NextConveneDate>
+      <LastUpdateDate>2026-01-07T17:46:39-05:00</LastUpdateDate>
+    </SessionDay>
+    <SessionDay>
+      <ConveneDate>2026-01-08T10:00:00-05:00</ConveneDate>
+      <AdjournDate>2026-01-08T16:26:00-05:00</AdjournDate>
+      <AdjournType>Adjourn</AdjournType>
+      <NextConveneDate>2026-01-08T16:27:00-05:00</NextConveneDate>
+      <LastUpdateDate>2026-01-09T13:33:11-05:00</LastUpdateDate>
+    </SessionDay>
+  </LegislativeDay>
+</CongressSessionDayConvenings>

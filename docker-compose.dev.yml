@@ -1,0 +1,6 @@
+# Overlay for building from source instead of pulling the published image.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+services:
+  mcp-cloakroom:
+    build: .
+    image: mcp-cloakroom:0.1.0

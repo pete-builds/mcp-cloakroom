@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: lint, types, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.in
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Mypy
+        run: mypy clients tools server.py ingest.py
+
+      - name: Tests with branch coverage
+        # The coverage floor lives in pyproject.toml under
+        # [tool.coverage.report] fail_under, so it is enforced identically here
+        # and on a developer's machine.
+        run: pytest
+
+      - name: Import smoke
+        run: python -c "import server, ingest; print('imports clean')"
+        env:
+          CLOAKROOM_AUTO_INGEST: "false"
+          CLOAKROOM_DB_PATH: ":memory:"
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Plant a positive control
+        # A scanner that finds nothing is indistinguishable from a scanner that
+        # is not running. This proves the job can still fail before trusting a
+        # clean result on the real tree.
+        run: |
+          mkdir -p .gitleaks-selftest
+          printf 'aws_access_key_id = AKIAIOSFODNN7EXAMPLE\n' > .gitleaks-selftest/canary.txt
+          printf 'aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n' >> .gitleaks-selftest/canary.txt
+
+      - name: Gitleaks must detect the control
+        uses: gitleaks/gitleaks-action@83373cf2f8c4db6e24b41c1a9b086bb9619e9cd3 # v2.3.9
+        continue-on-error: true
+        id: control
+        env:
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+          GITLEAKS_ENABLE_SUMMARY: "false"
+
+      - name: Fail if the control was not detected
+        run: |
+          if [ "${{ steps.control.outcome }}" != "failure" ]; then
+            echo "Gitleaks did not flag the planted control; the scan is not trustworthy."
+            exit 1
+          fi
+          echo "Positive control detected; scanner is live."
+          rm -rf .gitleaks-selftest
+
+      - name: Real scan
+        uses: gitleaks/gitleaks-action@83373cf2f8c4db6e24b41c1a9b086bb9619e9cd3 # v2.3.9
+        env:
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+  vulnerabilities:
+    name: trivy filesystem scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Trivy filesystem scan
+        # Pinned to a commit SHA, not a tag. A tag is mutable and a tag-object
+        # SHA passes CI while silently breaking Dependabot updates.
+        uses: aquasecurity/trivy-action@ed142fd9b1e6e01a6d3a02c2f5a7b8f0a0a1e40b # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+  docker:
+    name: image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build (amd64 + arm64, no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          tags: mcp-cloakroom:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

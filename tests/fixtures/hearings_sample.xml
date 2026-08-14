@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?><css_meetings_scheduled>
+  <meeting>
+    <cmte_code/>
+    <committee/>
+    <type/>
+    <date>14-AUG-2026</date>
+    <date_iso_8601>2026-08-14</date_iso_8601>
+    <day_of_week>Today</day_of_week>
+    <time>12:00:00</time>
+    <room/>
+    <matter>No committee hearings scheduled</matter>
+    <video_url/>
+    <senate_cable_channel/>
+  </meeting>
+  <meeting>
+    <identifier>338724</identifier>
+    <last_update>08-03-2026 03:34:42 PM</last_update>
+    <last_update_iso_8601>2026-08-03T15:34:42.000000Z-04:00</last_update_iso_8601>
+    <cmte_code>SSAS00</cmte_code>
+    <committee>Armed Services</committee>
+    <type>Closed Hearing</type>
+    <date>17-SEP-2026 09:30 AM</date>
+    <date_iso_8601>2026-09-17</date_iso_8601>
+    <day_of_week>Thursday</day_of_week>
+    <time>09:30 AM</time>
+    <time_iso_8601>09:30:00</time_iso_8601>
+    <room>SVC-217</room>
+    <video_url>
+    </video_url>
+    <senate_cable_channel>
+    </senate_cable_channel>
+    <Documents/>
+    <matter>To receive a closed briefing on the implementation of the National Defense Strategy and its impact on global defense posture.</matter>
+  </meeting>
+</css_meetings_scheduled>

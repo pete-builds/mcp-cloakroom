@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><vote_summary>
+  <congress>119</congress>
+  <session>2</session>
+  <congress_year>2026</congress_year>
+  <votes>
+<vote>
+      <vote_number>00231</vote_number>
+      <vote_date>08-Aug</vote_date>
+      <issue>S. 5271</issue>
+      <question>On Cloture on the Motion to Proceed
+         </question>
+      <result>Rejected</result>
+      <vote_tally>
+        <yeas>52</yeas>
+        <nays>46</nays>
+      </vote_tally>
+      <title>Motion to Invoke Cloture: Motion to Proceed to S. 5271; A bill to amend the Help America Vote Act of 2002 to require voters to provide photo identification.</title>
+    </vote>
+<vote>
+      <vote_number>00230</vote_number>
+      <vote_date>08-Aug</vote_date>
+      <issue>PN1078</issue>
+      <question>On the Nomination
+         </question>
+      <result>Confirmed</result>
+      <vote_tally>
+        <yeas>50</yeas>
+        <nays>49</nays>
+      </vote_tally>
+      <title>Confirmation: Todd Blanche, of Florida, to be Attorney General</title>
+    </vote>
+<vote>
+      <vote_number>00229</vote_number>
+      <vote_date>08-Aug</vote_date>
+      <issue>PN1078</issue>
+      <question>On the Cloture Motion
+         </question>
+      <result>Agreed to</result>
+      <vote_tally>
+        <yeas>50</yeas>
+        <nays>49</nays>
+      </vote_tally>
+      <title>Motion to Invoke Cloture: Todd Blanche to be Attorney General</title>
+    </vote>
+<vote>
+      <vote_number>00228</vote_number>
+      <vote_date>08-Aug</vote_date>
+      <issue>H.R. 6500</issue>
+      <question>On Passage of the Bill
+         </question>
+      <result>Passed</result>
+      <vote_tally>
+        <yeas>90</yeas>
+        <nays>6</nays>
+      </vote_tally>
+      <title>H.R. 6500, as amended; An act making continuing appropriations and extensions for fiscal year 2027, and for other purposes.</title>
+    </vote>
+<vote>
+      <vote_number>00227</vote_number>
+      <vote_date>08-Aug</vote_date>
+      <issue>H.R. 6500</issue>
+      <question>On the Motion to Table
+        <measure>S.Amdt. 6747</measure></question>
+      <result>Agreed to</result>
+      <vote_tally>
+        <yeas>61</yeas>
+        <nays>32</nays>
+      </vote_tally>
+      <title>Motion to Table Budd Amdt. No. 6747; To strike section 2019.</title>
+    </vote>
+  </votes>
+</vote_summary>

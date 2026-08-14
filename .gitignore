@@ -1,0 +1,27 @@
+.env
+*.env
+!.env.example
+
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.venv/
+venv/
+
+# The SQLite store is built by ingest, never committed.
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Internal build notes, not for the published repo
+SESSION-RESUME.md
+
+# Per-host compose overrides (host networking, bind mounts, ports)
+docker-compose.override.yml

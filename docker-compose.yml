@@ -1,0 +1,48 @@
+# Turnkey install. This pulls the published multi-arch image; nothing is built
+# locally and no toolchain is needed beyond Docker.
+#
+#   docker compose up -d
+#   docker compose logs -f      # watch the one-time bulk load
+#
+# The first start downloads roughly 140 MB of published data and builds a local
+# SQLite database, which usually takes a few minutes and needs about 1.5 GB of
+# free disk. It happens once: the database lives in the named volume below, so
+# later restarts are immediate.
+#
+# Contributors building from source should use:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  mcp-cloakroom:
+    image: ghcr.io/pete-builds/mcp-cloakroom:0.1.0
+    container_name: mcp-cloakroom
+    restart: unless-stopped
+    ports:
+      - "3728:3728"
+    # Optional. The server runs correctly with no .env at all.
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      # The roll call archive. Deleting this volume forces a full re-ingest.
+      - cloakroom-data:/app/data
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # Long enough to cover the first-run bulk load without the container
+      # being declared unhealthy while it is legitimately working.
+      start_period: 900s
+
+volumes:
+  cloakroom-data:

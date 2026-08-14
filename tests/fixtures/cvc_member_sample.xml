@@ -1,0 +1,66 @@
+<senators>
+<lastUpdate>
+<date>Wednesday, August 12, 2026</date>
+<time>5:00:08 AM EDT</time>
+</lastUpdate>
+<senator lis_member_id="S428">
+<name>
+<prefix>Ms.</prefix>
+<first>Angela D.</first>
+<last>Alsobrooks</last>
+<suffix>        
+</suffix>
+</name>
+<party>D</party>
+<state>MD</state>
+<homeTown>Upper Marlboro</homeTown>
+<stateRank>2</stateRank>
+<bioguideId>A000382</bioguideId>
+<office>374 Russell </office>
+<committees>
+<committee code="SPAG00">Special Committee on Aging</committee>
+<committee code="SSHR00">Committee on Health, Education, Labor, and Pensions</committee>
+<committee code="SSEV00">Committee on Environment and Public Works</committee>
+<committee code="SSBK00">Committee on Banking, Housing, and Urban Affairs</committee>
+</committees>
+</senator>
+<senator lis_member_id="S440">
+<name>
+<prefix>Mr.</prefix>
+<first>Alan</first>
+<last>Armstrong</last>
+<suffix>        
+</suffix>
+</name>
+<party>R</party>
+<state>OK</state>
+<homeTown>Tulsa</homeTown>
+<stateRank>2</stateRank>
+<bioguideId>A000383</bioguideId>
+<office>330 Hart </office>
+<committees>
+<committee code="SLIA00">Committee on Indian Affairs</committee>
+<committee code="SSHR00">Committee on Health, Education, Labor, and Pensions</committee>
+</committees>
+</senator>
+<senator lis_member_id="S354">
+<name>
+<prefix>Ms.</prefix>
+<first>Tammy </first>
+<last>Baldwin</last>
+<suffix>        
+</suffix>
+</name>
+<party>D</party>
+<state>WI</state>
+<homeTown>Madison</homeTown>
+<stateRank>2</stateRank>
+<bioguideId>B001230</bioguideId>
+<office>141 Hart </office>
+<committees>
+<committee code="SSHR00">Committee on Health, Education, Labor, and Pensions</committee>
+<committee code="SSCM00">Committee on Commerce, Science, and Transportation</committee>
+<committee code="SSAP00">Committee on Appropriations</committee>
+</committees>
+</senator>
+</senators>

@@ -1,0 +1,51 @@
+[project]
+name = "mcp-cloakroom"
+version = "0.1.0"
+description = "Senate roll call votes over the Model Context Protocol"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    # Multiple statements on one line, used only in the ingest batch flush where
+    # the three-call rhythm is clearer on one line than spread over three.
+    "E701",
+    "E702",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert on long real URLs and fixture strings that do not wrap usefully.
+"tests/*" = ["E501"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = ["tests/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --cov=clients --cov=tools --cov=server --cov=ingest --cov-branch --cov-report=term-missing"
+
+[tool.coverage.run]
+branch = true
+omit = ["tests/*"]
+
+[tool.coverage.report]
+# Set to the level the suite genuinely reaches, not a round number. Raise it
+# when real coverage improves; never lower it to make a red build green.
+fail_under = 85
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
