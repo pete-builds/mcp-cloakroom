@@ -44,6 +44,33 @@ jobs:
         # and on a developer's machine.
         run: pytest
 
+      - name: Lockfile drift check
+        # The tests install from requirements.in, but the published image
+        # installs from the hash-pinned requirements.lock. Dependabot's pip
+        # updater edits the .in and cannot regenerate the .lock, so a bumped
+        # dependency can go fully green in CI while the image keeps building
+        # against the old pin. Nothing else in this pipeline would notice.
+        run: |
+          set -euo pipefail
+          pip install uv
+          # rm first: if the compile fails, a leftover file from an earlier run
+          # would be compared instead, and the check would pass while checking
+          # nothing. Found by testing this step against a deliberately
+          # unsatisfiable pin.
+          rm -f /tmp/requirements.regen
+          uv pip compile requirements.in -o /tmp/requirements.regen \
+            --generate-hashes --universal --python-version 3.13 --quiet
+          test -s /tmp/requirements.regen
+          if ! diff -u <(grep -v '^#' requirements.lock) <(grep -v '^#' /tmp/requirements.regen); then
+            echo
+            echo "requirements.lock is stale relative to requirements.in."
+            echo "Regenerate it with:"
+            echo "  uv pip compile requirements.in -o requirements.lock \\"
+            echo "    --generate-hashes --universal --python-version 3.13"
+            exit 1
+          fi
+          echo "requirements.lock is in sync with requirements.in"
+
       - name: Import smoke
         # Deliberately runs with NO environment overrides. This step used to set
         # CLOAKROOM_AUTO_INGEST=false and CLOAKROOM_DB_PATH=:memory:, which is

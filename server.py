@@ -81,6 +81,7 @@ def build_context(s: CloakroomSettings) -> Context:
             cache=SqliteHttpCache(conn),
             contact_url=s.cloakroom_contact_url,
             user_agent_override=s.cloakroom_user_agent,
+            refresh_seconds=s.cloakroom_refresh_hours * 3600.0,
         )
         senate = SenateGovClient(
             fetcher,
