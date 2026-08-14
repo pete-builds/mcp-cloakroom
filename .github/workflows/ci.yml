@@ -98,7 +98,7 @@ jobs:
       - name: Trivy filesystem scan
         # Pinned to a commit SHA, not a tag. A tag is mutable and a tag-object
         # SHA passes CI while silently breaking Dependabot updates.
-        uses: aquasecurity/trivy-action@ed142fd9b1e6e01a6d3a02c2f5a7b8f0a0a1e40b # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
