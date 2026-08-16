@@ -65,7 +65,7 @@ jobs:
             echo
             echo "requirements.lock is stale relative to requirements.in."
             echo "Regenerate it with:"
-            echo "  uv pip compile requirements.in -o requirements.lock \\"
+            echo "  uv pip compile requirements.in -o requirements.lock --upgrade \\"
             echo "    --generate-hashes --universal --python-version 3.13"
             exit 1
           fi
