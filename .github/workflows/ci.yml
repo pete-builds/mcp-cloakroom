@@ -52,7 +52,7 @@ jobs:
         # against the old pin. Nothing else in this pipeline would notice.
         run: |
           set -euo pipefail
-          pip install uv
+          pip install uv==0.12.5
           # rm first: if the compile fails, a leftover file from an earlier run
           # would be compared instead, and the check would pass while checking
           # nothing. Found by testing this step against a deliberately
