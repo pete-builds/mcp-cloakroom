@@ -8,14 +8,14 @@ The latest commit on `main` is the only supported version. Older tags and releas
 
 If you find a security issue, **please do not open a public GitHub issue**.
 
-Email **pstergion@gmail.com** with:
+Report it through [GitHub private vulnerability reporting](../../security/advisories/new), which is enabled on this repository. Include:
 
 - A description of the vulnerability
 - Steps to reproduce (or a proof of concept)
 - Affected versions, if known
 - Your assessment of impact and severity
 
-I will acknowledge receipt within 72 hours and aim to ship a fix within 14 days for high-severity issues. Once the fix lands I will publish a GitHub Security Advisory crediting you (with your permission).
+The report stays private to the maintainer until a fix ships. I will acknowledge receipt within 72 hours and aim to ship a fix within 14 days for high-severity issues. Once the fix lands I will publish a GitHub Security Advisory crediting you (with your permission).
 
 ## Scope
 
