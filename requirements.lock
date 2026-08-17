@@ -261,15 +261,15 @@ exceptiongroup==1.3.1 \
     --hash=sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219 \
     --hash=sha256:a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598
     # via fastmcp-slim
-fastmcp==3.4.4 \
-    --hash=sha256:378202e26ec15b23819d9a1c0d1b0ebda096bc712720532010a0b82a45c2b1df \
-    --hash=sha256:f86f208713212260068cf55c32936839eee856fefc7808e18a032f31eb0f718e
+fastmcp==3.4.7 \
+    --hash=sha256:43117aca886f5ee2f6a569bba91cef02b59c339aad04ba29950ff18d251c822a \
+    --hash=sha256:e4e7698cb4af5bc667b1901685261fa2f3526dc73d243a461fca42500c8dbe56
     # via
     #   -r requirements.in
     #   pete-mcp-core
-fastmcp-slim==3.4.4 \
-    --hash=sha256:9d3a6327b9ee835188eb7323fc3b5d4cd061631b48da8ece56794bb538972505 \
-    --hash=sha256:dcaa3e0be2127d7eacdce592c2ef0039204923dc0ec396454615cb4a3275b078
+fastmcp-slim==3.4.7 \
+    --hash=sha256:06b32a358320a7dc2b2ee040ba89ea55ddc20763dff2949f384f7974b13b5d8f \
+    --hash=sha256:6c931a0089705f3f2935428ef9b2bc74ad94140adc64aab84d116d103e694b3a
     # via fastmcp
 griffelib==2.2.0 \
     --hash=sha256:d71c3bc2bbed9f958488634fe788b843a9f705d6d2838ca32cd6c25eeb64dfc4 \
