@@ -287,3 +287,75 @@ def test_http_cache_round_trips_validators(conn) -> None:
     assert row["etag"] == '"v1"'
     assert row["immutable"] == 1
     assert row["body"] == "<xml/>"
+
+
+# ------------------------------------------------- feed toggle enforcement
+
+
+def _vote_tool(loaded, feeds: str):
+    """A get_vote tool wired with a specific CLOAKROOM_SENATE_FEEDS value."""
+    fetcher = FixtureFetcher()
+    settings = CloakroomSettings(_env_file=None, CLOAKROOM_SENATE_FEEDS=feeds)
+    ctx = Ctx(
+        settings=settings,
+        conn=loaded,
+        senate=SenateGovClient(
+            fetcher,
+            loaded,
+            current_congress=119,
+            current_session=2,
+            enabled_feeds=settings.enabled_feeds,
+        ),
+    )
+    mcp = FastMCP("t")
+    register_vote_tools(mcp, ctx)
+    return {t.name: t for t in asyncio.run(mcp.list_tools())}["get_vote"], fetcher
+
+
+def test_disabling_the_votes_feed_blocks_get_vote_enrichment(loaded) -> None:
+    """Negative control: the toggle must actually stop the request.
+
+    This was a real bug. get_vote checked only whether a senate client existed,
+    not whether the votes feed was enabled, so an operator who disabled the feed
+    specifically to stop senate.gov traffic still got live requests.
+    """
+    tool, fetcher = _vote_tool(loaded, "hearings,floor,members")
+    payload = json.loads(
+        asyncio.run(tool.fn(congress=119, rollnumber=890, include_senate_detail=True))
+    )
+    assert fetcher.calls == [], "a request was made for a disabled feed"
+    assert "unavailable" in payload["data"]["senate_detail"]
+    assert "disabled" in payload["data"]["senate_detail"]["unavailable"]
+
+
+def test_enabling_the_votes_feed_still_permits_enrichment(loaded) -> None:
+    """Positive control: the guard must not block everything unconditionally."""
+    tool, fetcher = _vote_tool(loaded, "hearings,floor,members,votes")
+    payload = json.loads(
+        asyncio.run(tool.fn(congress=119, rollnumber=890, include_senate_detail=True))
+    )
+    assert len(fetcher.calls) == 1
+    assert payload["data"]["senate_detail"]["majority_requirement"] == "3/5"
+
+
+def test_the_client_enforces_the_toggle_even_if_a_caller_forgets(loaded) -> None:
+    """The choke-point guarantee, tested directly against the client.
+
+    A tool-level check alone would leave the next caller free to bypass it.
+    """
+    from clients.senate_gov import FeedDisabled
+
+    fetcher = FixtureFetcher()
+    client = SenateGovClient(fetcher, loaded, enabled_feeds={"hearings"})
+    for coro in (
+        client.vote_menu(119, 2),
+        client.vote_detail(119, 2, 231),
+        client.senators(),
+        client.floor_schedule(),
+    ):
+        with pytest.raises(FeedDisabled):
+            asyncio.run(coro)
+    assert fetcher.calls == [], "a disabled feed still reached the network"
+    # The one enabled feed must still work.
+    assert asyncio.run(client.hearings())
+    assert len(fetcher.calls) == 1

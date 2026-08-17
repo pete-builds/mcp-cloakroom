@@ -18,7 +18,7 @@ from pydantic import AliasChoices, Field
 from clients.http_polite import DEFAULT_CONTACT_URL
 
 DEFAULT_PORT = 3728
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 
 
 def _alias(*names: str) -> AliasChoices:

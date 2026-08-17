@@ -78,6 +78,7 @@ def register_analysis_tools(mcp: FastMCP, ctx) -> None:
             limit: Congress-wide mode only. Maximum senators returned, 1-100.
                 Defaults to 25.
         """
+        _reject_partial_address(session, vote_number)
         single = rollnumber is not None or (session is not None and vote_number is not None)
         if single:
             roll = queries.resolve_rollnumber(
@@ -157,6 +158,7 @@ def register_analysis_tools(mcp: FastMCP, ctx) -> None:
             member_block = resolve_any(conn, member)
             icpsr = member_block["icpsr"]
 
+        _reject_partial_address(session, vote_number)
         roll = None
         if rollnumber is not None or (session is not None and vote_number is not None):
             roll = queries.resolve_rollnumber(
@@ -175,3 +177,21 @@ def register_analysis_tools(mcp: FastMCP, ctx) -> None:
             data["member"] = member_block
         data["interpretation"] = nominate_interpretation()
         return ok(data, provenance(legislators=True))
+
+
+def _reject_partial_address(session: int | None, vote_number: int | None) -> None:
+    """Refuse half a senate.gov address instead of quietly ignoring it.
+
+    ``session`` and ``vote_number`` only mean anything together. Passing one
+    alone used to be dropped silently, so ``find_defectors(congress=119,
+    session=2)`` returned whole-congress rankings while looking like it had
+    answered a question about session 2. ``get_vote`` already rejects this;
+    these tools now agree with it.
+    """
+    if (session is None) != (vote_number is None):
+        missing = "vote_number" if session is not None else "session"
+        raise ValueError(
+            "session and vote_number identify a vote together; "
+            f"{missing} is missing. Pass both, or pass rollnumber, or pass "
+            "neither for a whole-congress view."
+        )

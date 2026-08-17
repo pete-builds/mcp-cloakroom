@@ -18,6 +18,23 @@ from clients.codes import (
     party_name,
 )
 
+# SQLite LIKE treats % and _ as wildcards, so a user searching for the literal
+# string "100%" was asking for "100 followed by anything" and a search for "%"
+# alone matched every row in the table. Parameterization prevents injection but
+# does nothing about this: the wildcards live in the *value*, not the SQL. Every
+# LIKE in this module escapes its pattern and declares an ESCAPE character.
+LIKE_ESCAPE = "\\"
+
+
+def like_contains(value: str) -> str:
+    """Build a contains-pattern that matches ``value`` literally."""
+    escaped = (
+        value.replace(LIKE_ESCAPE, LIKE_ESCAPE + LIKE_ESCAPE)
+        .replace("%", LIKE_ESCAPE + "%")
+        .replace("_", LIKE_ESCAPE + "_")
+    )
+    return f"%{escaped}%"
+
 
 class NotFound(LookupError):
     pass
@@ -135,9 +152,10 @@ def find_votes(
     params: list[object] = []
     if query:
         where.append(
-            "(vote_desc LIKE ? OR dtl_desc LIKE ? OR bill_number LIKE ? OR vote_question LIKE ?)"
+            "(vote_desc LIKE ? ESCAPE '\\' OR dtl_desc LIKE ? ESCAPE '\\' "
+            "OR bill_number LIKE ? ESCAPE '\\' OR vote_question LIKE ? ESCAPE '\\')"
         )
-        like = f"%{query}%"
+        like = like_contains(query)
         params.extend([like, like, like, like])
     if bill_number:
         # Voteview stores bill numbers unspaced ("S5271"); accept "S. 5271" too.
@@ -145,11 +163,11 @@ def find_votes(
         where.append("REPLACE(REPLACE(UPPER(bill_number),' ',''),'.','') = ?")
         params.append(norm)
     if question:
-        where.append("vote_question LIKE ?")
-        params.append(f"%{question}%")
+        where.append("vote_question LIKE ? ESCAPE '\\'")
+        params.append(like_contains(question))
     if result:
-        where.append("vote_result LIKE ?")
-        params.append(f"%{result}%")
+        where.append("vote_result LIKE ? ESCAPE '\\'")
+        params.append(like_contains(result))
     if congress is not None:
         where.append("congress = ?")
         params.append(congress)
@@ -244,9 +262,9 @@ def resolve_member(
         ).fetchall()
     elif name:
         rows = conn.execute(
-            "SELECT * FROM members WHERE bioname LIKE ? AND chamber='Senate' "
-            "ORDER BY congress DESC",
-            (f"%{name.upper()}%",),
+            "SELECT * FROM members WHERE bioname LIKE ? ESCAPE '\\' "
+            "AND chamber='Senate' ORDER BY congress DESC",
+            (like_contains(name.upper()),),
         ).fetchall()
     else:
         raise ValueError("pass one of bioguide_id, icpsr, or name")
