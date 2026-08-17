@@ -388,3 +388,34 @@ def test_compare_members_reports_ideological_context(mcp_and_ctx) -> None:
     # Context, never a prediction dressed up as a statistic.
     assert "not as a prediction" in ctxb["note"]
     assert "expected_agreement_rate" not in ctxb
+
+
+# --------------------------------------------- partial address rejection
+
+
+@pytest.mark.parametrize("tool_name", ["find_defectors", "find_unexpected_votes"])
+@pytest.mark.parametrize("kwargs", [{"session": 2}, {"vote_number": 231}])
+def test_analysis_tools_reject_half_a_senate_address(mcp_and_ctx, tool_name, kwargs) -> None:
+    """session and vote_number only mean anything together.
+
+    Passing one alone used to be dropped silently, so
+    find_defectors(congress=119, session=2) returned whole-congress rankings
+    while looking like it had answered a question about session 2. get_vote
+    already rejected this; these now agree with it.
+    """
+    mcp, _ = mcp_and_ctx
+    payload = json.loads(asyncio.run(_tools(mcp)[tool_name].fn(congress=119, **kwargs)))
+    assert payload["code"] == "INVALID_INPUT"
+    assert "session" in payload["error"] and "vote_number" in payload["error"]
+
+
+@pytest.mark.parametrize("tool_name", ["find_defectors", "find_unexpected_votes"])
+def test_analysis_tools_still_accept_a_complete_or_absent_address(mcp_and_ctx, tool_name) -> None:
+    """Positive control: the guard must not reject valid calls."""
+    mcp, _ = mcp_and_ctx
+    both = json.loads(
+        asyncio.run(_tools(mcp)[tool_name].fn(congress=119, session=2, vote_number=231))
+    )
+    assert "data" in both
+    neither = json.loads(asyncio.run(_tools(mcp)[tool_name].fn(congress=119)))
+    assert "data" in neither

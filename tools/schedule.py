@@ -41,9 +41,11 @@ def register_schedule_tools(mcp: FastMCP, ctx) -> None:
         Each requested feed that is disabled or unavailable comes back as an
         object with an `unavailable` key rather than being silently omitted.
 
-        This is the one tool that always makes a network request. Responses use
-        conditional GETs, so a repeat call within the refresh window normally
-        costs a 304 with no body.
+        This is the one tool that reaches senate.gov. A repeat call inside the
+        refresh window (CLOAKROOM_REFRESH_HOURS, 24 by default) is served from
+        cache and makes no request at all; after the window it revalidates with
+        a conditional GET, which normally costs a 304 with no body. Closed
+        sessions are cached permanently and never refetched.
 
         Idempotent: yes, read-only.
 

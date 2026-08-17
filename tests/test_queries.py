@@ -358,3 +358,41 @@ def test_defection_and_unpredicted_rates_are_independent(loaded) -> None:
         assert 0.0 <= m["unpredicted_rate"] <= 1.0
         assert "fit" in m
     assert "unpredicted_rate" in r["definitions"]
+
+
+# ------------------------------------------------------ LIKE wildcard safety
+
+
+@pytest.mark.parametrize("needle", ["%", "_", "100%", "S_5271", "%%", "_%_"])
+def test_like_wildcards_in_a_query_are_matched_literally(loaded, needle: str) -> None:
+    """A search for "%" asked SQLite for "anything" and returned every row.
+
+    Not injection, since the query is parameterized, but the wildcards live in
+    the value rather than the SQL, so parameterization does nothing about them.
+    None of these strings appear in the fixture, so every one must find nothing.
+    """
+    got = queries.find_votes(loaded, query=needle)
+    assert got["total_matching"] == 0, f"{needle!r} over-matched {got['total_matching']} rows"
+
+
+def test_escaping_does_not_break_ordinary_search(loaded) -> None:
+    """Positive control: escaping must not defeat real searches."""
+    assert queries.find_votes(loaded, query="JUDICIAL COURTS")["total_matching"] == 1
+    assert queries.find_votes(loaded, question="On Passage")["total_matching"] >= 1
+    assert queries.resolve_member(loaded, name="SANDERS")["state"] == "VT"
+
+
+def test_like_wildcards_in_a_member_name_are_literal(loaded) -> None:
+    from clients.queries import NotFound
+
+    with pytest.raises(NotFound):
+        queries.resolve_member(loaded, name="%")
+
+
+def test_like_contains_escapes_the_escape_character() -> None:
+    """A literal backslash must not become an escape sequence."""
+    from clients.queries import like_contains
+
+    assert like_contains("a%b") == "%a\\%b%"
+    assert like_contains("a_b") == "%a\\_b%"
+    assert like_contains("a\\b") == "%a\\\\b%"
