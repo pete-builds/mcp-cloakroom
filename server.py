@@ -81,12 +81,16 @@ def build_context(s: CloakroomSettings) -> Context:
             cache=SqliteHttpCache(conn),
             contact_url=s.cloakroom_contact_url,
             user_agent_override=s.cloakroom_user_agent,
+            refresh_seconds=s.cloakroom_refresh_hours * 3600.0,
         )
         senate = SenateGovClient(
             fetcher,
             conn,
             current_congress=s.cloakroom_current_congress,
             current_session=s.cloakroom_current_session,
+            # The toggle is enforced inside the client, so every caller is
+            # covered rather than only the ones that remember to check.
+            enabled_feeds=s.enabled_feeds,
         )
     else:
         log.info("All senate.gov feeds disabled; serving entirely from bulk data.")
@@ -94,42 +98,57 @@ def build_context(s: CloakroomSettings) -> Context:
     return Context(settings=s, conn=conn, senate=senate, fetcher=fetcher)
 
 
-ctx = build_context(settings)
+def build_app(s: CloakroomSettings | None = None) -> tuple[FastMCP, Context]:
+    """Construct the server. Every side effect in this module happens here.
 
+    Deliberately a function rather than module-level code. Building the context
+    opens the database and, on an empty one, runs the full bulk ingest, so doing
+    it at import time meant that merely importing this module downloaded ~140 MB
+    from voteview.com and wrote a database into whatever directory the importer
+    happened to be in. A test that imported the module for introspection paid
+    that cost, which is how it went unnoticed: the import-smoke step set
+    CLOAKROOM_AUTO_INGEST=false, so the one place anybody looked was the one
+    place it could not happen.
 
-@asynccontextmanager
-async def lifespan(_app):
-    try:
-        yield
-    finally:
-        if ctx.fetcher is not None:
-            await ctx.fetcher.close()
+    Importing this module must stay free of I/O. ``tests/test_import_purity.py``
+    enforces that.
+    """
+    ctx = build_context(s or settings)
 
+    @asynccontextmanager
+    async def lifespan(_app):
+        try:
+            yield
+        finally:
+            if ctx.fetcher is not None:
+                await ctx.fetcher.close()
 
-mcp = FastMCP(
-    "Cloakroom",
-    lifespan=lifespan,
-    auth=build_auth_provider(
-        settings.auth_token,
-        client_id="cloakroom",
-        required=settings.auth_required,
-        logger=log,
-    ),
-)
+    mcp = FastMCP(
+        "Cloakroom",
+        lifespan=lifespan,
+        auth=build_auth_provider(
+            ctx.settings.auth_token,
+            client_id="cloakroom",
+            required=ctx.settings.auth_required,
+            logger=log,
+        ),
+    )
 
-register_vote_tools(mcp, ctx)
-register_member_tools(mcp, ctx)
-register_analysis_tools(mcp, ctx)
-register_schedule_tools(mcp, ctx)
-# Plain HTTP, not a tool: an uptime monitor polls status codes.
-register_health_route(mcp, ctx, version=VERSION)
+    register_vote_tools(mcp, ctx)
+    register_member_tools(mcp, ctx)
+    register_analysis_tools(mcp, ctx)
+    register_schedule_tools(mcp, ctx)
+    # Plain HTTP, not a tool: an uptime monitor polls status codes.
+    register_health_route(mcp, ctx, version=VERSION)
+    return mcp, ctx
 
 
 def main() -> None:
     # default_host is "0.0.0.0" on purpose. MCP SDK 2.0's server defaults to
     # loopback, which serves CI and localhost perfectly while returning 421 to
     # every client on the network. Binding explicitly here, and pinning it in
-    # tests/test_binding.py, is what keeps that failure from shipping silently.
+    # tests/test_config.py, is what keeps that failure from shipping silently.
+    mcp, _ = build_app()
     run_server(
         mcp,
         default_port=DEFAULT_PORT,

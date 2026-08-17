@@ -18,7 +18,7 @@ jobs:
     name: lint, types, tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v6
         with:
@@ -44,61 +44,119 @@ jobs:
         # and on a developer's machine.
         run: pytest
 
+      - name: Lockfile drift check
+        # The tests install from requirements.in, but the published image
+        # installs from the hash-pinned requirements.lock. Dependabot's pip
+        # updater edits the .in and cannot regenerate the .lock, so a bumped
+        # dependency can go fully green in CI while the image keeps building
+        # against the old pin. Nothing else in this pipeline would notice.
+        run: |
+          set -euo pipefail
+          pip install uv==0.12.5
+          # rm first: if the compile fails, a leftover file from an earlier run
+          # would be compared instead, and the check would pass while checking
+          # nothing. Found by testing this step against a deliberately
+          # unsatisfiable pin.
+          rm -f /tmp/requirements.regen
+          uv pip compile requirements.in -o /tmp/requirements.regen \
+            --generate-hashes --universal --python-version 3.13 --quiet
+          test -s /tmp/requirements.regen
+          if ! diff -u <(grep -v '^#' requirements.lock) <(grep -v '^#' /tmp/requirements.regen); then
+            echo
+            echo "requirements.lock is stale relative to requirements.in."
+            echo "Regenerate it with:"
+            echo "  uv pip compile requirements.in -o requirements.lock --upgrade \\"
+            echo "    --generate-hashes --universal --python-version 3.13"
+            exit 1
+          fi
+          echo "requirements.lock is in sync with requirements.in"
+
       - name: Import smoke
+        # Deliberately runs with NO environment overrides. This step used to set
+        # CLOAKROOM_AUTO_INGEST=false and CLOAKROOM_DB_PATH=:memory:, which is
+        # precisely why nobody noticed that importing the module downloaded
+        # ~140 MB and wrote a database: the one place the import was exercised
+        # was the one place it was suppressed. Importing must be free of I/O on
+        # its own merits.
         run: python -c "import server, ingest; print('imports clean')"
-        env:
-          CLOAKROOM_AUTO_INGEST: "false"
-          CLOAKROOM_DB_PATH: ":memory:"
 
   secrets:
     name: secret scan
     runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+      # sha256 of gitleaks_8.30.1_linux_x64.tar.gz, from the release's own
+      # published checksums.txt. Verified independently before use.
+      GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
     steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v7
 
+      - name: Install gitleaks (checksum-verified)
+        run: |
+          curl -sSL -o gitleaks.tgz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar xzf gitleaks.tgz gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      # Deliberately NOT gitleaks/gitleaks-action. That action's default
+      # push-event scan mode walks git history (`--log-opts=-1`, the last
+      # commit only) rather than the checked-out working tree. A canary planted
+      # here as a loose, uncommitted file is invisible to a history-only scan
+      # regardless of whether it contains a real secret — proven locally before
+      # this workflow was written: an uncommitted AWS-shaped canary produced
+      # "no leaks found" under the action's default invocation. Calling the
+      # gitleaks binary directly with `--no-git` scans the working tree as
+      # plain files instead, which is also the more honest question for a
+      # published image: does *this* checkout contain a secret, independent of
+      # history. Combined with running on every push, this covers what the
+      # history-walking mode was meant to provide.
       - name: Plant a positive control
         # A scanner that finds nothing is indistinguishable from a scanner that
         # is not running. This proves the job can still fail before trusting a
         # clean result on the real tree.
+        #
+        # NOT the AWS-documented example key (AKIAIOSFODNN7EXAMPLE /
+        # wJalrXUtnFEMI...). That exact string is in gitleaks' own default
+        # allowlist, so a scan that "passes" against it proves nothing --
+        # confirmed locally, where it produced zero findings even under a full
+        # flat-file scan. A synthetic, randomly generated token shaped like a
+        # GitHub PAT (`ghp_` + 36 alnum chars) matches gitleaks' `github-pat`
+        # rule by structure and entropy, is not a real credential, and is not
+        # on anyone's allowlist.
         run: |
           mkdir -p .gitleaks-selftest
-          printf 'aws_access_key_id = AKIAIOSFODNN7EXAMPLE\n' > .gitleaks-selftest/canary.txt
-          printf 'aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n' >> .gitleaks-selftest/canary.txt
+          token="ghp_$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c36)"
+          printf 'GITHUB_TOKEN=%s\n' "$token" > .gitleaks-selftest/canary.txt
 
       - name: Gitleaks must detect the control
-        uses: gitleaks/gitleaks-action@83373cf2f8c4db6e24b41c1a9b086bb9619e9cd3 # v2.3.9
-        continue-on-error: true
         id: control
-        env:
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
-          GITLEAKS_ENABLE_SUMMARY: "false"
+        continue-on-error: true
+        run: gitleaks detect --no-git --source . --redact -v
 
       - name: Fail if the control was not detected
         run: |
           if [ "${{ steps.control.outcome }}" != "failure" ]; then
-            echo "Gitleaks did not flag the planted control; the scan is not trustworthy."
+            echo "gitleaks did not flag the planted control; the scan is not trustworthy."
             exit 1
           fi
           echo "Positive control detected; scanner is live."
           rm -rf .gitleaks-selftest
 
       - name: Real scan
-        uses: gitleaks/gitleaks-action@83373cf2f8c4db6e24b41c1a9b086bb9619e9cd3 # v2.3.9
-        env:
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+        run: gitleaks detect --no-git --source . --redact -v
 
   vulnerabilities:
     name: trivy filesystem scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Trivy filesystem scan
         # Pinned to a commit SHA, not a tag. A tag is mutable and a tag-object
         # SHA passes CI while silently breaking Dependabot updates.
-        uses: aquasecurity/trivy-action@ed142fd9b1e6e01a6d3a02c2f5a7b8f0a0a1e40b # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -110,13 +168,13 @@ jobs:
     name: image builds
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Build (amd64 + arm64, no push)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -124,3 +182,39 @@ jobs:
           tags: mcp-cloakroom:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # A multi-platform build produces a manifest list the local docker
+      # exporter cannot load, so take a single-arch pass for the guard below.
+      # Every layer is a cache hit off the build above.
+      - name: Load a runnable amd64 copy for the interpreter guard
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: mcp-cloakroom:guard
+          cache-from: type=gha
+
+      - name: Assert the image ships the Python minor version we target
+        # Guard rail for the digest-bump trap. Every other job in this workflow
+        # runs on actions/setup-python 3.13, so nothing here ever executes the
+        # *image's* interpreter. That let a Dependabot base-image bump move the
+        # Dockerfile FROM tag from 3.13 to 3.14 on sister repos and ship a
+        # runtime no lockfile or check had exercised, with CI fully green.
+        #
+        # requirements.lock is compiled with --python-version 3.13, pyproject
+        # requires >=3.13 and mypy targets 3.13, so the image must agree.
+        # --entrypoint is required: the image's ENTRYPOINT is the server itself.
+        run: |
+          docker run --rm --entrypoint python mcp-cloakroom:guard -c '
+          import sys
+          want = (3, 13)
+          got = sys.version_info[:2]
+          assert got == want, (
+              f"image ships Python {sys.version.split()[0]}, but pyproject, mypy "
+              f"and requirements.lock all target {want[0]}.{want[1]}. Fix the "
+              f"Dockerfile FROM tag, or retarget every version surface together."
+          )
+          print(f"image Python {sys.version.split()[0]} matches target {want[0]}.{want[1]}")
+          '

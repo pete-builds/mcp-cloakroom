@@ -3,4 +3,4 @@
 services:
   mcp-cloakroom:
     build: .
-    image: mcp-cloakroom:0.1.0
+    image: mcp-cloakroom:0.1.1

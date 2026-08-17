@@ -63,10 +63,16 @@ database before it starts serving.
 | **Network requests** | 5 total |
 | **Repeat starts** | immediate; the database lives in a Docker volume |
 
-Progress is printed to the container log, so `docker compose logs -f` shows it
-working rather than appearing to hang. While loading, `GET /healthz` returns
-`503` with `"status": "loading"`, which is the honest answer, and the container
-healthcheck has a long start period so it is not killed mid-load.
+The load runs in the container's entrypoint, before the server starts, so
+**while it is loading nothing is listening on 3728 yet**: `curl` gets a
+connection refused rather than an HTTP response. Watch `docker compose logs -f`
+instead, which prints progress as each file lands. The container healthcheck has
+a long start period so the container is not killed mid-load.
+
+Once the server is up, `GET /healthz` returns `200`. It returns `503` with
+`"status": "loading"` if the server is running against a database that has not
+been populated, which is what you get when the automatic load is turned off
+(`CLOAKROOM_AUTO_INGEST=false`) and `ingest.py` has not been run yet.
 
 Check on it any time:
 

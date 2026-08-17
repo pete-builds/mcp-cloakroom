@@ -11,12 +11,16 @@ workaround, because the session is created before method dispatch, so HEAD and
 OPTIONS leak slightly worse than GET. Only staying off the ``/mcp`` mount avoids
 it. ``/healthz`` is a plain custom route with no session cost.
 
-503 is treated as alive on purpose. This server returns 503 while the first-run
-bulk ingest is still populating the database, which can take several minutes.
-Failing the healthcheck there would restart the container mid-load and never
-converge. 401 is alive for the same class of reason: with MCP_AUTH_REQUIRED set,
-an unauthenticated probe is rejected by a server that is otherwise fine. 500
-stays out, so a real fault still fails.
+503 is treated as alive on purpose. The server returns it when it is running
+against a database that has not been populated yet, which happens when the
+automatic load is disabled and ingest.py has not been run. That is a state the
+operator has to resolve, not one a restart can fix, so failing here would only
+produce a restart loop. (Note the first-run bulk load itself happens in the
+entrypoint before the server binds, so during that window the probe gets a
+connection error rather than a 503; the healthcheck's long start period is what
+covers it.) 401 is alive for the same class of reason: with MCP_AUTH_REQUIRED
+set, an unauthenticated probe is rejected by a server that is otherwise fine.
+500 stays out, so a real fault still fails.
 
 Env precedence for the port matches ``pete_mcp_core.serve`` exactly
 (``FASTMCP_PORT`` > ``MCP_PORT`` > default) so the probe can never target a

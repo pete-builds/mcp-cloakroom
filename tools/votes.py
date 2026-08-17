@@ -135,8 +135,13 @@ def register_vote_tools(mcp: FastMCP, ctx) -> None:
                     "unavailable": "senate.gov publishes roll call detail from the "
                     "101st Congress forward; this vote predates that."
                 }
-            elif ctx.senate is None:
-                data["senate_detail"] = {"unavailable": "senate.gov feeds are disabled."}
+            elif ctx.senate is None or not ctx.settings.feed_enabled("votes"):
+                # Checked here for a clear message, and enforced again inside
+                # SenateGovClient so a future caller cannot skip it.
+                data["senate_detail"] = {
+                    "unavailable": "the senate.gov votes feed is disabled by "
+                    "configuration; no request was made."
+                }
             else:
                 data["senate_detail"] = await ctx.senate.vote_detail(congress, sess, vnum)
                 used_senate = True
