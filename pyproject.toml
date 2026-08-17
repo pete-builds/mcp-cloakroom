@@ -1,6 +1,6 @@
 [project]
 name = "mcp-cloakroom"
-version = "0.1.0"
+version = "0.1.2"
 description = "Senate roll call votes over the Model Context Protocol"
 readme = "README.md"
 requires-python = ">=3.13"

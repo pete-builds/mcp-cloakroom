@@ -191,9 +191,14 @@ class PoliteFetcher:
         cache=None,
         contact_url: str | None = None,
         user_agent_override: str | None = None,
+        refresh_seconds: float = 0.0,
     ):
         self._ua = user_agent_override or user_agent(version, contact_url)
         self._min_interval = min_interval
+        # Within this window a cached body is served with no request at all.
+        # Outside it, the stored validators still make the refetch a conditional
+        # GET, so the usual cost is a 304 with no body.
+        self._refresh_seconds = refresh_seconds
         self._last_request = 0.0
         self._lock = asyncio.Lock()
         self._cache = cache
@@ -206,6 +211,26 @@ class PoliteFetcher:
 
     async def close(self) -> None:
         await self._client.aclose()
+
+    def _within_refresh_window(self, cached: dict) -> bool:
+        """Whether a cached entry is young enough to serve without asking again.
+
+        Returns False when the window is zero (the default), which restores the
+        always-revalidate behaviour.
+        """
+        if self._refresh_seconds <= 0:
+            return False
+        stamp = cached.get("fetched_at")
+        if not stamp:
+            return False
+        try:
+            fetched = datetime.fromisoformat(stamp)
+        except ValueError:
+            return False
+        if fetched.tzinfo is None:
+            fetched = fetched.replace(tzinfo=UTC)
+        age = (datetime.now(UTC) - fetched).total_seconds()
+        return age < self._refresh_seconds
 
     async def _throttle(self) -> None:
         elapsed = time.monotonic() - self._last_request
@@ -223,6 +248,10 @@ class PoliteFetcher:
         cached = self._cache.get(url) if self._cache else None
         if cached and cached.get("immutable") and cached.get("body"):
             log.debug("cache hit (immutable): %s", url)
+            return cached["body"]
+
+        if cached and cached.get("body") and self._within_refresh_window(cached):
+            log.debug("cache hit (within refresh window): %s", url)
             return cached["body"]
 
         headers: dict[str, str] = {}

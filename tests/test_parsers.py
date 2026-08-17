@@ -78,6 +78,53 @@ def test_vote_detail_is_cached_and_not_refetched(conn) -> None:
     assert again["count_yeas"] == 52
 
 
+def test_vote_detail_is_genuinely_idempotent(conn) -> None:
+    """Same call, same answer. The tool advertises this, so it has to be true.
+
+    It was not: positions were parsed but never persisted, so the first call
+    returned ~100 members and every later call returned an empty list plus an
+    extra `positions_source` key the first response did not have. A caller
+    diffing two identical requests would see the chamber vanish.
+    """
+    client, fetcher = _client({"roll_call_votes": "vote_119_2_00231.xml"}, conn)
+    first = asyncio.run(client.vote_detail(119, 2, 231))
+    second = asyncio.run(client.vote_detail(119, 2, 231))
+    third = asyncio.run(client.vote_detail(119, 2, 231))
+
+    assert first == second == third, "repeated calls returned different payloads"
+    assert len(second["positions"]) == 100
+    assert len(fetcher.calls) == 1, "idempotency was achieved by refetching"
+
+    names = {p["last_name"] for p in second["positions"]}
+    assert "Alsobrooks" in names
+    casts = {p["vote_cast"] for p in second["positions"]}
+    assert casts <= {"Yea", "Nay", "Present", "Not Voting"}
+
+
+def test_a_detail_row_cached_without_positions_self_heals(conn) -> None:
+    """Databases written before positions were persisted must not stay broken.
+
+    Rather than shipping a migration, a detail row with no stored positions is
+    treated as a cache miss so the next call refetches and repopulates both
+    tables.
+    """
+    client, fetcher = _client({"roll_call_votes": "vote_119_2_00231.xml"}, conn)
+    asyncio.run(client.vote_detail(119, 2, 231))
+    assert len(fetcher.calls) == 1
+
+    # Simulate the old on-disk state: detail present, positions absent.
+    conn.execute("DELETE FROM senate_vote_positions")
+    conn.commit()
+
+    healed = asyncio.run(client.vote_detail(119, 2, 231))
+    assert len(fetcher.calls) == 2, "the stale row was served instead of refetched"
+    assert len(healed["positions"]) == 100
+
+    # And it is cached properly now.
+    asyncio.run(client.vote_detail(119, 2, 231))
+    assert len(fetcher.calls) == 2
+
+
 def test_hearings_flags_status_rows_without_dropping_them() -> None:
     client, _ = _client({"hearings.xml": "hearings_sample.xml"})
     rows = asyncio.run(client.hearings())
