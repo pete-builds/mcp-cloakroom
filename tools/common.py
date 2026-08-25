@@ -14,6 +14,26 @@ from clients.queries import NotFound
 
 log = logging.getLogger("mcp-cloakroom.tools")
 
+# --- Tool annotations ---
+# This server is entirely read-only: eight tools reporting how members of
+# Congress voted, and not one writes anything anywhere. That is worth
+# DECLARING rather than leaving to be inferred, because an unannotated
+# read-only server and an unannotated server full of delete tools are
+# indistinguishable in the manifest. Saying "these eight are safe" is what
+# makes "that one is not", elsewhere in the fleet, mean something.
+#
+# openWorldHint is True: the tools read a public upstream, so an answer can
+# change between two identical calls because a new vote was recorded, not
+# because the call changed anything.
+
+#: Reads only. Safe to repeat, safe to call speculatively.
+READ_ONLY = {
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": True,
+}
+
 
 def ok(data: Any, provenance: dict | None = None) -> str:
     """Success envelope: ``{"data": ...}``, with source attribution attached."""
