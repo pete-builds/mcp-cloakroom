@@ -29,8 +29,13 @@ from tools.schedule import register_schedule_tools
 from tools.votes import register_vote_tools
 
 EXPECTED = {
-    "get_member_votes", "compare_members", "find_defectors",
-    "find_unexpected_votes", "get_schedule", "list_votes", "get_vote",
+    "get_member_votes",
+    "compare_members",
+    "find_defectors",
+    "find_unexpected_votes",
+    "get_schedule",
+    "list_votes",
+    "get_vote",
     "find_votes",
 }
 
@@ -40,8 +45,12 @@ def tools():
     """The live manifest, not the source. What a client would receive."""
     mcp = FastMCP("Cloakroom-test")
     ctx = SimpleNamespace(conn=None, fetcher=None, settings=None)
-    for register in (register_vote_tools, register_member_tools,
-                     register_analysis_tools, register_schedule_tools):
+    for register in (
+        register_vote_tools,
+        register_member_tools,
+        register_analysis_tools,
+        register_schedule_tools,
+    ):
         register(mcp, ctx)
     return {t.name: t for t in asyncio.run(mcp.list_tools())}
 
