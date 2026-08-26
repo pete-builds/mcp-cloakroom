@@ -12,13 +12,13 @@ from fastmcp import FastMCP
 
 from clients import queries
 from clients.codes import provenance
-from tools.common import clamp, ok, tool_guard
+from tools.common import READ_ONLY, clamp, ok, tool_guard
 
 
 def register_vote_tools(mcp: FastMCP, ctx) -> None:
     conn = ctx.conn
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_guard
     async def list_votes(
         congress: int | None = None,
@@ -68,7 +68,7 @@ def register_vote_tools(mcp: FastMCP, ctx) -> None:
         )
         return ok(data, provenance())
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_guard
     async def get_vote(
         congress: int,
@@ -148,7 +148,7 @@ def register_vote_tools(mcp: FastMCP, ctx) -> None:
 
         return ok(data, provenance(senate_gov=used_senate, legislators=True))
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_guard
     async def find_votes(
         query: str | None = None,
