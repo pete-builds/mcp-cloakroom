@@ -15,13 +15,13 @@ from fastmcp import FastMCP
 
 from clients import analysis, queries
 from clients.codes import nominate_interpretation, provenance
-from tools.common import clamp, ok, tool_guard
+from tools.common import READ_ONLY, clamp, ok, tool_guard
 
 
 def register_analysis_tools(mcp: FastMCP, ctx) -> None:
     conn = ctx.conn
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_guard
     async def find_defectors(
         congress: int,
@@ -94,7 +94,7 @@ def register_analysis_tools(mcp: FastMCP, ctx) -> None:
         data["interpretation"] = nominate_interpretation()
         return ok(data, provenance(legislators=True))
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_guard
     async def find_unexpected_votes(
         congress: int,
