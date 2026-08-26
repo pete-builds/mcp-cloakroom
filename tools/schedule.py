@@ -9,13 +9,13 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from clients.codes import provenance
-from tools.common import ok, tool_guard
+from tools.common import READ_ONLY, ok, tool_guard
 
 FEEDS = ("hearings", "members", "floor", "votes")
 
 
 def register_schedule_tools(mcp: FastMCP, ctx) -> None:
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_guard
     async def get_schedule(
         feed: str = "all", congress: int | None = None, session: int | None = None

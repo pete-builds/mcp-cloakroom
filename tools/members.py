@@ -10,13 +10,13 @@ from fastmcp import FastMCP
 
 from clients import queries
 from clients.codes import nominate_interpretation, provenance
-from tools.common import clamp, ok, tool_guard
+from tools.common import READ_ONLY, clamp, ok, tool_guard
 
 
 def register_member_tools(mcp: FastMCP, ctx) -> None:
     conn = ctx.conn
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_guard
     async def get_member_votes(
         name: str | None = None,
@@ -65,7 +65,7 @@ def register_member_tools(mcp: FastMCP, ctx) -> None:
         )
         return ok({"member": member, "record": record}, provenance(legislators=True))
 
-    @mcp.tool()
+    @mcp.tool(annotations=READ_ONLY)
     @tool_guard
     async def compare_members(
         member_a: str,
