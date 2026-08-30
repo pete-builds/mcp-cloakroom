@@ -1,7 +1,7 @@
 # Pinned digest so rebuilds are reproducible. Refresh with:
 #   docker pull python:3.13-slim && docker inspect python:3.13-slim --format '{{index .RepoDigests 0}}'
 # Dependabot keeps it current weekly via .github/dependabot.yml.
-FROM python:3.13-slim@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a
+FROM python:3.13-slim@sha256:7ce4b6dfe35e55397b7cda544f8a13f191b7ae28dc5aad71fe664dbc9bc2623f
 
 WORKDIR /app
 
